@@ -63,13 +63,16 @@ const TREINOS = [
 
 let currentTreino = 0, currentSemana = 0, dados = {};
 
+// Funções de Chave de Dados
 function gk(t,s,e,sr,suf=''){return `t${t}_s${s}_e${e}_s${sr}${suf}`;}
 function gkObs(t,s,e){return `obs_${t}_${s}_${e}`;}
 function gkChk(t,s,e,sr){return `chk_${t}_${s}_${e}_${sr}`;}
 
+// Persistência
 function load(){try{const r=localStorage.getItem('treino_v1');if(r)dados=JSON.parse(r);}catch(e){dados={};}}
 function save(){try{localStorage.setItem('treino_v1',JSON.stringify(dados));}catch(e){}}
 
+// Navegação
 function setTreino(i){
   currentTreino=i;
   document.querySelectorAll('.tab-btn').forEach((b,j)=>b.classList.toggle('active',j===i));
@@ -81,6 +84,7 @@ function setSemana(s){
   renderTreino();
 }
 
+// Renderização da Interface
 function renderTreino(){
   const tr=TREINOS[currentTreino], s=currentSemana;
   let html='', total=0, done=0;
@@ -116,6 +120,7 @@ function renderTreino(){
   updateProgFill(done,total);
 }
 
+// Progresso e Checks
 function updateProg(){
   const tr=TREINOS[currentTreino],s=currentSemana;
   let total=0,done=0;
@@ -133,6 +138,7 @@ function updateProgFill(done,total){
 }
 function toggleChk(btn,k){dados[k]=!dados[k];btn.classList.toggle('done',!!dados[k]);updateProg();}
 
+// Ações
 function salvar(){
   save();
   const m=document.getElementById('toast');
@@ -140,25 +146,61 @@ function salvar(){
   setTimeout(()=>m.classList.remove('show'),2000);
 }
 
-function exportar(){
-  const tr=TREINOS[currentTreino],s=currentSemana;
-  let txt=`TREINO ${tr.nome.toUpperCase()} — SEMANA ${s+1}\n${'='.repeat(36)}\n\n`;
-  tr.exercicios.forEach((ex,ei)=>{
-    txt+=`${ex.nome}\nMeta: ${ex.meta[s]}\n`;
-    for(let sr=0;sr<ex.series[s];sr++){
-      const kg=dados[gk(currentTreino,s,ei,sr)]||'—';
-      const rp=dados[gk(currentTreino,s,ei,sr,'_r')]||'—';
-      txt+=`  Série ${sr+1}: ${kg}kg × ${rp} reps\n`;
-    }
-    const obs=dados[gkObs(currentTreino,s,ei)];
-    if(obs)txt+=`  Obs: ${obs}\n`;
-    txt+='\n';
-  });
-  const blob=new Blob([txt],{type:'text/plain'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`treino_${tr.nome.toLowerCase()}_semana${s+1}.txt`;
+// NOVA FUNÇÃO DE EXPORTAÇÃO COM VALIDAÇÃO COMPLETA
+function exportar() {
+  let txt = `RELATÓRIO COMPLETO DE PROGRESSÃO — GABRIEL LONGARFINO\n`;
+  txt += `Gerado em: ${new Date().toLocaleDateString()} às ${new Date().toLocaleTimeString()}\n`;
+  txt += `${'='.repeat(50)}\n\n`;
+
+  let erros = [];
+
+  // Percorre as 4 semanas do mesociclo
+  for (let s = 0; s < 4; s++) {
+    txt += `--- SEMANA ${s + 1} ---\n\n`;
+
+    // Percorre todos os treinos (Push, Pull, etc)
+    TREINOS.forEach((tr, ti) => {
+      txt += `TREINO: ${tr.nome.toUpperCase()}\n`;
+      txt += `${'-'.repeat(20)}\n`;
+
+      tr.exercicios.forEach((ex, ei) => {
+        txt += `${ex.nome} (Meta: ${ex.meta[s]})\n`;
+        
+        for (let sr = 0; sr < ex.series[s]; sr++) {
+          const kg = dados[gk(ti, s, ei, sr)];
+          const rp = dados[gk(ti, s, ei, sr, '_r')];
+          const chk = dados[gkChk(ti, s, ei, sr)];
+
+          // Validação: impede download se houver campo vazio ou falta de check
+          if (!kg || !rp || !chk) {
+            erros.push(`Semana ${s + 1} - ${tr.nome}: ${ex.nome} (Série ${sr + 1})`);
+          }
+
+          txt += `  S${sr + 1}: ${kg || '—'}kg × ${rp || '—'} reps ${chk ? '[OK]' : '[PENDENTE]'}\n`;
+        }
+        
+        const obs = dados[gkObs(ti, s, ei)];
+        if (obs) txt += `  Obs: ${obs}\n`;
+        txt += `\n`;
+      });
+      txt += `\n`;
+    });
+    txt += `${'='.repeat(50)}\n\n`;
+  }
+
+  // Verifica se o array de erros contém algo
+  if (erros.length > 0) {
+    alert(`O relatório está incompleto! Preencha tudo antes de exportar.\n\nPendências encontradas:\n• ${erros.slice(0, 5).join('\n• ')}${erros.length > 5 ? '\n...e mais.' : ''}`);
+    return;
+  }
+
+  // Se validado, inicia download
+  const blob = new Blob([txt], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `progresso_completo_gabriel.txt`;
   a.click();
 }
 
+// Inicialização
 load();
